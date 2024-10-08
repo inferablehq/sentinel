@@ -127,3 +127,5 @@ temp/
 
 # Compiled binary addons (https://nodejs.org/api/addons.html)
 build/Release
+
+data/

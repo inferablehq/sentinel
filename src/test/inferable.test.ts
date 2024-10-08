@@ -3,30 +3,17 @@ import { z } from "zod";
 import { test } from "node:test";
 import { createServer } from "../server";
 import http from "node:http";
+import assert from "node:assert";
 
-const startServer = async (port: number) => {
-  const server = createServer();
-  await new Promise<void>((resolve) => {
-    server.listen(port, () => {
-      console.log(`Test server running on port ${port}`);
-      resolve();
-    });
-  });
-  return server;
-};
-
-const stopServer = async (server: http.Server) => {
-  await new Promise<void>((resolve) => server.close(() => resolve()));
-};
-
-test("should be able to register a machine", async () => {
-  const port = 3195;
-
-  const server = await startServer(port);
+test("should be able to register a machine", async (t) => {
+  assert(
+    process.env.INFERABLE_MACHINE_API_SECRET,
+    "Machine API secret is not set"
+  );
 
   const client = new Inferable({
-    apiSecret: process.env.INFERABLE_API_SECRET,
-    endpoint: `http://localhost:${port}`,
+    apiSecret: process.env.INFERABLE_MACHINE_API_SECRET,
+    endpoint: process.env.SENTINEL_EXTERNAL_URL,
   });
 
   const address = {
@@ -74,8 +61,14 @@ test("should be able to register a machine", async () => {
 
   await client.default.start();
 
+  assert(client.clusterId, "Cluster ID is not set");
+  assert(
+    process.env.INFERABLE_CLUSTER_CONSUME_SECRET,
+    "Cluster consume secret is not set"
+  );
+
   const response = await fetch(
-    `http://localhost:${port}/clusters/${process.env.INFERABLE_CLUSTER_ID}/runs`,
+    `${process.env.SENTINEL_EXTERNAL_URL}/clusters/${client.clusterId}/runs`,
     {
       method: "POST",
       headers: {
@@ -96,9 +89,10 @@ test("should be able to register a machine", async () => {
     }
   );
 
-  const data = await response.json();
+  const data: any = await response.json();
 
-  // TODO: assert that the response is correct
+  assert(data.id, "Run ID is not set");
 
-  await stopServer(server);
+  // await client.default.stop();
+  // await stopServer(server);
 });

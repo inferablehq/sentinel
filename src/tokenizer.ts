@@ -1,6 +1,5 @@
 import { randomBytes } from "crypto";
-import fs from "fs";
-import path from "path";
+import assert from "node:assert";
 import { KVStore, KVValue } from "./kv";
 
 const KV = new KVStore();
@@ -34,7 +33,12 @@ function replaceValues(obj: any): any {
   return obj;
 }
 
-export const tokenizeJson = (json: string, unmaskable: string | null) => {
+export const tokenizeJson = (
+  json: string,
+  unmaskable?: string | null
+): string => {
+  assert(typeof json === "string", "JSON must be a string");
+
   const parsed = JSON.parse(json);
 
   let unmasked: { [key: string]: unknown } = {};
@@ -50,5 +54,5 @@ export const tokenizeJson = (json: string, unmaskable: string | null) => {
 
   const masked = replaceValues(parsed);
 
-  return Object.assign(unmasked, masked);
+  return JSON.stringify(Object.assign(unmasked, masked));
 };

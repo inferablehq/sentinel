@@ -2,6 +2,7 @@ import { randomBytes } from "crypto";
 import http, { IncomingMessage, ServerResponse } from "http";
 import assert from "node:assert";
 import { tokenizeJson } from "./tokenizer";
+import { alteredResponses } from "./altered-responses";
 
 export function createServer() {
   return http.createServer(
@@ -17,6 +18,10 @@ export function createServer() {
   );
 }
 
+assert(process.env.DESTINATION_URL, "DESTINATION_URL is required");
+
+const destination = new URL(process.env.DESTINATION_URL);
+
 async function handleRequest(req: IncomingMessage, res: ServerResponse) {
   const requestId = randomBytes(4).toString("hex");
 
@@ -24,17 +29,6 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse) {
 
   assert(req.url, "Request URL is required");
   const url = new URL(`http://host${req.url}`);
-
-  // Handle the /live endpoint
-  if (url.pathname === "/live") {
-    res.writeHead(200, { "Content-Type": "application/json" });
-    res.end(JSON.stringify({ status: "ok" }));
-    return;
-  }
-
-  const destination = new URL(
-    process.env.DESTINATION_URL || "https://api.inferable.ai"
-  );
 
   const body = await getRequestBody(req);
   let processedBody = body;
@@ -98,24 +92,40 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse) {
       res.setHeader(key, value);
     }
 
-    // Forward the response status
-    res.writeHead(response.status);
+    if (!response.body) {
+      res.end();
+      console.log(`[${requestId}] <- Response sent`);
+    } else {
+      // do we need to alter the response?
+      const alteredResponse = alteredResponses.find((alteredResponse) =>
+        alteredResponse.matcher(req)
+      );
 
-    // Stream the response body
-    if (response.body) {
-      const reader = response.body.getReader();
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        res.write(value);
+      if (alteredResponse) {
+        const altered = await alteredResponse.handler({
+          body: await response.text(),
+        });
+
+        res.setHeader("Content-Length", Buffer.byteLength(altered.body));
+        res.writeHead(response.status);
+
+        res.write(altered.body);
+        res.end();
+        console.log(`[${requestId}] <- Altered response sent`);
+      } else {
+        res.writeHead(response.status);
+        const reader = response.body.getReader();
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          res.write(value);
+        }
+        res.end();
+        console.log(`[${requestId}] <- Response sent`);
       }
     }
-
-    console.log(`[${requestId}] <- Response sent`);
-
-    res.end();
   } catch (error) {
-    console.error(`[${requestId}] <- Forwarded request error: ${error}`);
+    console.error(`[${requestId}] <- Forwarded response error: ${error}`);
     res.statusCode = 500;
     res.end(`Error: ${error instanceof Error ? error.message : String(error)}`);
   }
