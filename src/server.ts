@@ -3,6 +3,32 @@ import http, { IncomingMessage, ServerResponse } from "http";
 import assert from "node:assert";
 import { tokenizeJson } from "./tokenizer";
 import { alteredResponses } from "./altered-responses";
+import { getUpstreamUrl } from "./upstream";
+
+export const logRestsTo = ({
+  method,
+  url,
+  headers,
+  body,
+  originalUrl,
+  originalHeaders,
+}: {
+  method: string;
+  url: string;
+  headers: unknown;
+  body: unknown;
+  originalUrl: string;
+  originalHeaders: unknown;
+}) => {
+  require("fs").appendFileSync(
+    "requests.log",
+    JSON.stringify(
+      { method, url, headers, body, originalUrl, originalHeaders },
+      null,
+      2
+    )
+  );
+};
 
 export function createServer() {
   return http.createServer(
@@ -17,10 +43,6 @@ export function createServer() {
     }
   );
 }
-
-assert(process.env.DESTINATION_URL, "DESTINATION_URL is required");
-
-const destination = new URL(process.env.DESTINATION_URL);
 
 async function handleRequest(req: IncomingMessage, res: ServerResponse) {
   const requestId = randomBytes(4).toString("hex");
@@ -74,10 +96,23 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse) {
     }
   }
 
-  const targetUrl = new URL(url.pathname + url.search, destination);
+  const customUpstreamUrl = getUpstreamUrl(url.pathname);
+
+  const targetUrl = customUpstreamUrl
+    ? new URL(customUpstreamUrl)
+    : new URL(url.pathname + url.search, process.env.DESTINATION_URL);
 
   try {
     console.log(`[${requestId}] -> Fetching ${targetUrl}`);
+
+    logRestsTo({
+      method: req.method!,
+      originalUrl: url.toString(),
+      url: targetUrl.toString(),
+      originalHeaders: req.headers,
+      headers: Object.fromEntries(headers.entries()),
+      body: processedBody,
+    });
 
     const response = await fetch(targetUrl, {
       method: req.method,
