@@ -10,7 +10,7 @@
   "license": "ISC",
   "description": "",
   "devDependencies": {
-    "inferable": "^0.30.0",
+    "inferable": "^0.30.11",
     "tsx": "^4.19.1",
     "typescript": "^4.9.5"
   }
