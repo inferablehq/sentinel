@@ -1,0 +1,13 @@
+{
+  "routes": [
+    {
+      "method": "GET",
+      "path": "/live"
+    }
+  ],
+  "maskedKeys": [
+    "password",
+    "ssn",
+    "creditCard"
+  ]
+}
