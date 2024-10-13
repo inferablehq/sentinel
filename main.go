@@ -6,9 +6,11 @@ import (
 	"log"
 	"net/http"
 	"strings"
+
+	"github.com/inferablehq/sentinel/pkg/strategies"
 )
 
-var config Config
+var config strategies.Config
 
 func copyHeader(dst, src http.Header) {
 	for k, vv := range src {
@@ -33,7 +35,7 @@ func main() {
 func router(w http.ResponseWriter, r *http.Request) {
 	log.Printf("Received request: %s %s", r.Method, r.URL.Path)
 
-	var found *Route
+	var found *strategies.Route
 
 	for _, route := range config.Routes {
 		if r.Method == route.Method && route.PathMatcher(r.URL.Path) {

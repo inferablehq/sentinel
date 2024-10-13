@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
+	"os"
 	"strings"
 	"testing"
 	"time"
@@ -32,6 +33,10 @@ const (
 )
 
 func TestInferableSetup(t *testing.T) {
+	os.Setenv("STRATEGY", "e2e")
+	os.Setenv("DATA_DIR", "./data")
+	go main()
+
 	// Initialize Inferable client
 	client, err := inferable.New(inferable.InferableOptions{
 		APIEndpoint: "http://localhost:8080",
@@ -70,6 +75,7 @@ func TestInferableSetup(t *testing.T) {
 	}
 
 	err = client.Default.Start()
+	defer client.Default.Stop()
 	if err != nil {
 		t.Fatalf("Failed to start client: %v", err)
 	}

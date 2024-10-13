@@ -44,7 +44,7 @@ func setValue(key string, value Stored) error {
 func maskValue(value interface{}) (string, error) {
 	key := valueId(8)
 
-	dataPath := filepath.Join(os.Getenv("INFERABLE_DATA_DIR"), key)
+	dataPath := filepath.Join(os.Getenv("DATA_DIR"), key)
 
 	err := setValue(dataPath, Stored{Value: value})
 	if err != nil {
@@ -58,7 +58,7 @@ func isMask(key string) bool {
 }
 
 func unmaskValue(key string) (interface{}, error) {
-	dataPath := filepath.Join(os.Getenv("INFERABLE_DATA_DIR"), key)
+	dataPath := filepath.Join(os.Getenv("DATA_DIR"), key)
 
 	if value, err := os.ReadFile(dataPath); err != nil {
 		return nil, err

@@ -2,7 +2,6 @@ package tokenizer
 
 import (
 	"fmt"
-	"log"
 	"slices"
 )
 
@@ -25,8 +24,6 @@ func tokenizerObject(obj map[string]interface{}, path string, except []string) (
 			fmt.Println("except", currentPath)
 			continue
 		}
-
-		log.Println(">>> tokenizing", currentPath)
 
 		tokenized, err := Tokenizer(value, currentPath, except)
 		if err != nil {
