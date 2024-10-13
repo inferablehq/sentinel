@@ -26,17 +26,21 @@ Think of Sentinel as a coat checker for your data. When you send a request:
 
 ```mermaid
 sequenceDiagram
-    participant Payments Service as PS
-    participant Sentinel as S
-    participant Job Queue as Q
-    participant User Service as US
+    participant US as User Service
+    participant S as Sentinel
+    participant Q as Job Queue
+    participant PS as Payments Service
 
-    US->>Q: POST /enqueue_job {type: "process_payment", data: {amount: 100, card: "1234-5678-9012-3456"}}
+    US->>S: POST /enqueue_job {type: "process_payment", data: {amount: 100, card: "1234-5678-9012-3456"}}
+    S->>Q: POST /enqueue_job {type: "process_payment", data: {amount: 100, card: "t_card123"}}
+    Q-->>S: Response: "Job enqueued"
+    S-->>US: Response: "Job enqueued"
+
+    Note over Q: Later, when processing the job
     Q->>S: POST /process_payment {amount: 100, card: "t_card123"}
     S->>PS: POST /process_payment {amount: 100, card: "1234-5678-9012-3456"}
     PS-->>S: Response: "Purchase successful"
     S-->>Q: Response: "Purchase successful"
-    Q-->>US: "Purchase successful"
 ```
 
 This process ensures that sensitive information never leaves your premises in its original form.
