@@ -26,8 +26,10 @@ Think of Sentinel as a coat checker for your data. When you send a request:
 
 ```mermaid
 sequenceDiagram
+    box On-Premise
     participant US as User Service
     participant PS as Payments Service
+    end
     participant S as Sentinel
     participant Q as Job Queue
 
