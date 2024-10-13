@@ -27,9 +27,9 @@ Think of Sentinel as a coat checker for your data. When you send a request:
 ```mermaid
 sequenceDiagram
     participant US as User Service
+    participant PS as Payments Service
     participant S as Sentinel
     participant Q as Job Queue
-    participant PS as Payments Service
 
     US->>S: POST /enqueue_job {type: "process_payment", data: {amount: 100, card: "1234-5678-9012-3456"}}
     S->>Q: POST /enqueue_job {type: "process_payment", data: {amount: 100, card: "t_card123"}}
