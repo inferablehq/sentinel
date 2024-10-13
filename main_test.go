@@ -11,28 +11,15 @@ import (
 	"time"
 
 	"github.com/inferablehq/inferable-go"
-)
-
-func TestLiveEndpoint(t *testing.T) {
-	// Assuming the server is running on localhost:8080
-	resp, err := http.Get("http://localhost:8080/live")
-	if err != nil {
-		t.Fatalf("Error making GET request: %v", err)
-	}
-	defer resp.Body.Close()
-
-	// Check if the status code is 200 OK
-	if resp.StatusCode != http.StatusOK {
-		t.Errorf("Expected status OK; got %v", resp.Status)
-	}
-}
-
-const (
-	clusterId      = "01J7M489FSEY357S99YZ1H176E"
-	consume_secret = "sk_cluster_consume_tmpjNA8YS3ElGjyGsxUiMrHZx1JXgL69MC5LCnBaKKE"
+	"github.com/joho/godotenv"
 )
 
 func TestInferableSetup(t *testing.T) {
+	if err := godotenv.Load(); err != nil {
+		fmt.Println("Error loading .env file")
+		t.FailNow()
+	}
+
 	os.Setenv("STRATEGY", "e2e")
 	os.Setenv("DATA_DIR", "./data")
 	go main()
@@ -40,7 +27,7 @@ func TestInferableSetup(t *testing.T) {
 	// Initialize Inferable client
 	client, err := inferable.New(inferable.InferableOptions{
 		APIEndpoint: "http://localhost:8080",
-		APISecret:   "sk_cluster_machine_eM0eP4cvmGdfdxLG3IIY9EJmpSQVpFei0EjBZscR8nA",
+		APISecret:   os.Getenv("INFERABLE_MACHINE_SECRET"),
 	})
 	if err != nil {
 		t.Fatalf("Failed to initialize Inferable client: %v", err)
@@ -85,14 +72,14 @@ func TestInferableSetup(t *testing.T) {
 	}
 
 	// Create a run to sum 1 and 2
-	runID, err := createRun(consume_secret)
+	runID, err := createRun(os.Getenv("INFERABLE_CLUSTER_CONSUME_SECRET"))
 
 	if err != nil {
 		t.Fatalf("Failed to create run: %v", err)
 	}
 
 	// Retrieve run results
-	result, err := getRunResults(consume_secret, runID, 0)
+	result, err := getRunResults(os.Getenv("INFERABLE_CLUSTER_CONSUME_SECRET"), runID, 0)
 	if err != nil {
 		t.Fatalf("Failed to get run results: %v", err)
 	}
@@ -104,7 +91,7 @@ func TestInferableSetup(t *testing.T) {
 }
 
 func createRun(apiKey string) (string, error) {
-	url := fmt.Sprintf("http://localhost:8080/clusters/%s/runs", clusterId)
+	url := fmt.Sprintf("http://localhost:8080/clusters/%s/runs", os.Getenv("INFERABLE_CLUSTER_ID"))
 	payload := strings.NewReader(`{
 		"message": "Sum 1 and 2. Get the masked value.",
 		"result": {
@@ -146,7 +133,7 @@ func createRun(apiKey string) (string, error) {
 }
 
 func getRunResults(apiKey, runID string, attempts int) (string, error) {
-	url := fmt.Sprintf("http://localhost:8080/clusters/%s/runs/%s", clusterId, runID)
+	url := fmt.Sprintf("http://localhost:8080/clusters/%s/runs/%s", os.Getenv("INFERABLE_CLUSTER_ID"), runID)
 
 	req, _ := http.NewRequest("GET", url, nil)
 	req.Header.Add("authorization", apiKey)
