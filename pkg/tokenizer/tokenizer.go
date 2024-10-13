@@ -2,10 +2,22 @@ package tokenizer
 
 import (
 	"fmt"
+	"log"
 	"slices"
 )
 
-func Tokenizer(obj map[string]interface{}, path string, except []string) (map[string]interface{}, error) {
+func Tokenizer(data interface{}, path string, except []string) (interface{}, error) {
+	switch v := data.(type) {
+	case map[string]interface{}:
+		return tokenizerObject(v, path, except)
+	case []interface{}:
+		return tokenizerArray(v, path, except)
+	default:
+		return maskValue(v)
+	}
+}
+
+func tokenizerObject(obj map[string]interface{}, path string, except []string) (map[string]interface{}, error) {
 	for key, value := range obj {
 		currentPath := fmt.Sprintf("%s.%s", path, key)
 
@@ -14,44 +26,72 @@ func Tokenizer(obj map[string]interface{}, path string, except []string) (map[st
 			continue
 		}
 
-		switch v := value.(type) {
-		case string, int, float64:
-			fmt.Println(currentPath, v)
-			m, err := getMaskedValue(v)
-			if err != nil {
-				return nil, err
-			}
-			obj[key] = m
-		case map[string]interface{}:
-			subMap, err := Tokenizer(v, currentPath, except)
-			if err != nil {
-				return nil, err
-			}
-			obj[key] = subMap
-		case []interface{}:
-			for i, item := range v {
-				if subMap, ok := item.(map[string]interface{}); ok {
-					t, err := Tokenizer(subMap, fmt.Sprintf("%s.%d", currentPath, i), except)
-					v[i] = t
-					if err != nil {
-						return nil, err
-					}
-				} else if _, ok := item.(string); ok {
-					m, err := getMaskedValue(item)
-					if err != nil {
-						return nil, err
-					}
-					v[i] = m
-				} else if _, ok := item.(int); ok {
-					m, err := getMaskedValue(item)
-					if err != nil {
-						return nil, err
-					}
-					v[i] = m
-				}
-			}
+		log.Println(">>> tokenizing", except, currentPath)
+
+		tokenized, err := Tokenizer(value, currentPath, except)
+		if err != nil {
+			return nil, err
 		}
+		obj[key] = tokenized
 	}
 
 	return obj, nil
+}
+
+func tokenizerArray(arr []interface{}, path string, except []string) ([]interface{}, error) {
+	for i, item := range arr {
+		currentPath := fmt.Sprintf("%s.%d", path, i)
+		tokenized, err := Tokenizer(item, currentPath, except)
+		if err != nil {
+			return nil, err
+		}
+		arr[i] = tokenized
+	}
+	return arr, nil
+}
+
+func Detokenizer(data interface{}, path string, except []string) (interface{}, error) {
+	switch v := data.(type) {
+	case map[string]interface{}:
+		return detokenizerObject(v, path, except)
+	case []interface{}:
+		return detokenizerArray(v, path, except)
+	case string:
+		if isMask(v) {
+			return unmaskValue(v)
+		}
+		return v, nil
+	default:
+		return v, nil
+	}
+}
+
+func detokenizerObject(obj map[string]interface{}, path string, except []string) (map[string]interface{}, error) {
+	for key, value := range obj {
+		currentPath := fmt.Sprintf("%s.%s", path, key)
+
+		if slices.Contains(except, currentPath) {
+			continue
+		}
+
+		detokenized, err := Detokenizer(value, currentPath, except)
+		if err != nil {
+			return nil, err
+		}
+		obj[key] = detokenized
+	}
+
+	return obj, nil
+}
+
+func detokenizerArray(arr []interface{}, path string, except []string) ([]interface{}, error) {
+	for i, item := range arr {
+		currentPath := fmt.Sprintf("%s.%d", path, i)
+		detokenized, err := Detokenizer(item, currentPath, except)
+		if err != nil {
+			return nil, err
+		}
+		arr[i] = detokenized
+	}
+	return arr, nil
 }

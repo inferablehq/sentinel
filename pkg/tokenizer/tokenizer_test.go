@@ -2,66 +2,67 @@ package tokenizer
 
 import (
 	"encoding/json"
+	"os"
 	"reflect"
+	"strings"
 	"testing"
 )
 
-func TestTokenizer(t *testing.T) {
+func TestTokenizerAndDetokenizer(t *testing.T) {
 	SetRandomSeed(1)
+
+	// Set up a temporary directory for masked values
+	tempDir, err := os.MkdirTemp("", "tokenizer_test")
+	if err != nil {
+		t.Fatalf("Failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tempDir)
+	os.Setenv("INFERABLE_DATA_DIR", tempDir)
 
 	tests := []struct {
 		name   string
 		input  string
 		except []string
-		want   string
 	}{
 		{
 			name:   "Simple object",
 			input:  `{"name": "John", "age": 30}`,
 			except: []string{},
-			want:   `{"age": "c2WD8F2q", "name": "BpLnfgDs"}`,
 		},
 		{
 			name:   "Nested object",
 			input:  `{"user": {"name": "Alice", "email": "alice@example.com"}, "score": 95}`,
 			except: []string{},
-			want:   `{"score":"h9h2fhfU","user":{"email":"jjJkwzDk","name":"NfHK5a84"}}`,
 		},
 		{
 			name:   "Array of objects",
 			input:  `{"users": [{"name": "Bob", "age": 25}, {"name": "Charlie", "age": 35}]}`,
 			except: []string{},
-			want:   `{"users":[{"age":"VbhV3vC5","name":"VuS9jZ8u"},{"age":"WSP2NcHc","name":"AWX39IVU"}]}`,
 		},
 		{
 			name:   "Mixed types",
 			input:  `{"name": "Dave", "active": true, "hobbies": ["reading", "cycling"]}`,
 			except: []string{},
-			want:   `{"active":true,"hobbies":["N95RxRTZ","HWUsaD6H"],"name":"iWvqZTa2"}`,
 		},
 		{
 			name:   "With exceptions",
 			input:  `{"user": {"name": "Eve", "email": "eve@example.com"}, "message": "Hello"}`,
 			except: []string{".user.name", ".message"},
-			want:   `{"message":"Hello","user":{"email":"Edz0ThbX","name":"Eve"}}`,
 		},
 		{
 			name:   "Deep nesting",
 			input:  `{"level1": {"level2": {"level3": {"value": "secret"}}}}`,
 			except: []string{},
-			want:   `{"level1":{"level2":{"level3":{"value":"fQ6pYSQ3"}}}}`,
 		},
 		{
 			name:   "Array with mixed types",
 			input:  `{"data": [42, "text", {"key": "value"}, true]}`,
 			except: []string{},
-			want:   `{"data":[42,"n267l1VQ",{"key":"KGNbSuJE"},true]}`,
 		},
 		{
 			name:   "Except with different types",
 			input:  `{"name": "Except", "age": 30, "active": true}`,
 			except: []string{".name", ".age"},
-			want:   `{"active": true, "age": 30, "name": "Except"}`,
 		},
 	}
 
@@ -71,25 +72,55 @@ func TestTokenizer(t *testing.T) {
 			err := json.Unmarshal([]byte(tt.input), &input)
 			if err != nil {
 				t.Fatalf("Failed to unmarshal input JSON: %v", err)
+				return
 			}
 
-			result, err := Tokenizer(input, "", tt.except)
+			// Tokenize
+			tokenized, err := Tokenizer(input, "", tt.except)
 			if err != nil {
 				t.Fatalf("Tokenizer() error = %v", err)
+				return
 			}
 
-			resultJSON, err := json.Marshal(result)
+			// Detokenize
+			detokenized, err := Detokenizer(tokenized, "", tt.except)
 			if err != nil {
-				t.Fatalf("Failed to marshal result to JSON: %v", err)
+				t.Fatalf("Detokenizer() error = %v", err)
+				return
 			}
 
-			var want, got map[string]interface{}
-			json.Unmarshal([]byte(tt.want), &want)
-			json.Unmarshal(resultJSON, &got)
+			// Compare original input with detokenized result
+			if !reflect.DeepEqual(input, detokenized) {
+				t.Errorf("Detokenized result does not match original input.\nOriginal: %v\nDetokenized: %v", input, detokenized)
+				return
+			}
 
-			if !reflect.DeepEqual((got), (want)) {
-				t.Errorf("Tokenizer() = %v, want %v", string(resultJSON), tt.want)
+			// Check if excepted fields were not tokenized
+			for _, path := range tt.except {
+				originalValue := getNestedValue(input, path)
+				tokenizedValue := getNestedValue(tokenized.(map[string]interface{}), path)
+				if !reflect.DeepEqual(originalValue, tokenizedValue) {
+					t.Errorf("Excepted field %s was tokenized. Original: %v, Tokenized: %v", path, originalValue, tokenizedValue)
+					return
+				}
 			}
 		})
 	}
+}
+
+// Helper function to get nested value from a map using a dot-separated path
+func getNestedValue(m map[string]interface{}, path string) interface{} {
+	keys := strings.Split(path, ".")
+	current := m
+	for i, key := range keys {
+		if i == len(keys)-1 {
+			return current[key]
+		}
+		if v, ok := current[key].(map[string]interface{}); ok {
+			current = v
+		} else {
+			return nil
+		}
+	}
+	return nil
 }

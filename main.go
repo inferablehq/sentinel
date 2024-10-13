@@ -33,19 +33,17 @@ func main() {
 func router(w http.ResponseWriter, r *http.Request) {
 	log.Printf("Received request: %s %s", r.Method, r.URL.Path)
 
-	var requestBody string
-	processable := false
+	var found *Route
 
 	for _, route := range config.Routes {
 		if r.Method == route.Method && route.PathMatcher(r.URL.Path) {
 			log.Printf("Processing request: %s %s", r.Method, r.URL.Path)
-			route.RequestBodyHandler(w, r, &requestBody)
-			processable = true
+			found = &route
 			break
 		}
 	}
 
-	if !processable {
+	if found == nil {
 		log.Printf("Request not found: %s %s", r.Method, r.URL.Path)
 		http.NotFound(w, r)
 		return
@@ -56,17 +54,41 @@ func router(w http.ResponseWriter, r *http.Request) {
 		targetURL += "?" + r.URL.RawQuery
 	}
 
-	proxyReq, err := http.NewRequest(r.Method, targetURL, strings.NewReader(requestBody))
+	// Read the request body
+	requestBody, err := io.ReadAll(r.Body)
 	if err != nil {
+		log.Printf("Error reading request body: %v", err)
+		http.Error(w, "Error reading request", http.StatusInternalServerError)
+		return
+	}
+
+	// Process the request body
+	processedRequestBody, err := found.RequestBodyHandler(string(requestBody))
+	if err != nil {
+		log.Printf("Error handling request body: %v", err)
+		http.Error(w, "Error processing request", http.StatusInternalServerError)
+		return
+	}
+
+	// Create the proxy request
+	proxyReq, err := http.NewRequest(r.Method, targetURL, io.NopCloser(strings.NewReader(processedRequestBody)))
+	if err != nil {
+		log.Printf("Error creating proxy request: %v", err)
 		http.Error(w, "Error creating proxy request", http.StatusInternalServerError)
 		return
 	}
 
-	proxyReq.Header = r.Header
+	// Copy headers from the original request to the proxy request
+	copyHeader(proxyReq.Header, r.Header)
+
+	// Set the Content-Length header
+	proxyReq.ContentLength = int64(len(processedRequestBody))
+	proxyReq.Header.Set("Content-Length", fmt.Sprintf("%d", proxyReq.ContentLength))
 
 	proxyClient := &http.Client{}
 	proxyResp, err := proxyClient.Do(proxyReq)
 	if err != nil {
+		log.Printf("Error proxying request: %v", err)
 		http.Error(w, "Error proxying request", http.StatusInternalServerError)
 		return
 	}
@@ -74,8 +96,26 @@ func router(w http.ResponseWriter, r *http.Request) {
 
 	copyHeader(w.Header(), proxyResp.Header)
 	w.WriteHeader(proxyResp.StatusCode)
-	io.Copy(w, proxyResp.Body)
-	fmt.Println("requestBody")
 
-	w.Write([]byte(requestBody))
+	responseBody, err := io.ReadAll(proxyResp.Body)
+	if err != nil {
+		log.Printf("Error reading response body: %v", err)
+		http.Error(w, "Error reading response", http.StatusInternalServerError)
+		return
+	}
+
+	// Process the response body
+	processedResponseBody, err := found.ResponseBodyHandler(string(responseBody))
+	if err != nil {
+		log.Printf("Error processing response body: %v", err)
+		http.Error(w, "Error processing response", http.StatusInternalServerError)
+		return
+	}
+
+	_, err = w.Write([]byte(processedResponseBody))
+	if err != nil {
+		log.Printf("Error writing response: %v", err)
+		http.Error(w, "Error writing response", http.StatusInternalServerError)
+		return
+	}
 }

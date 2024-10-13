@@ -2,8 +2,11 @@ package tokenizer
 
 import (
 	"encoding/json"
+	"fmt"
 	"math/rand"
 	"os"
+	"path/filepath"
+	"strings"
 	"time"
 )
 
@@ -20,13 +23,13 @@ func SetRandomSeed(seed int64) {
 	rng = rand.New(rand.NewSource(seed))
 }
 
-func randomString(length int) string {
+func valueId(length int) string {
 	charset := "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
 	b := make([]byte, length)
 	for i := range b {
 		b[i] = charset[rng.Intn(len(charset))]
 	}
-	return string(b)
+	return fmt.Sprintf("$$masked_%s", string(b))
 }
 
 func setValue(key string, value Stored) error {
@@ -38,11 +41,32 @@ func setValue(key string, value Stored) error {
 	return os.WriteFile(key, jsonValue, 0644)
 }
 
-func getMaskedValue(value interface{}) (string, error) {
-	key := randomString(8)
-	err := setValue(key, Stored{Value: value})
+func maskValue(value interface{}) (string, error) {
+	key := valueId(8)
+
+	dataPath := filepath.Join(os.Getenv("INFERABLE_DATA_DIR"), key)
+
+	err := setValue(dataPath, Stored{Value: value})
 	if err != nil {
 		return "", err
 	}
 	return key, nil
+}
+
+func isMask(key string) bool {
+	return strings.HasPrefix(key, "$$masked_")
+}
+
+func unmaskValue(key string) (interface{}, error) {
+	dataPath := filepath.Join(os.Getenv("INFERABLE_DATA_DIR"), key)
+
+	if value, err := os.ReadFile(dataPath); err != nil {
+		return nil, err
+	} else {
+		var stored Stored
+		if err := json.Unmarshal(value, &stored); err != nil {
+			return nil, err
+		}
+		return stored.Value, nil
+	}
 }
