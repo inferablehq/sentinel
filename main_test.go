@@ -42,15 +42,26 @@ func TestInferableSetup(t *testing.T) {
 	}
 
 	type calcInput struct {
-		Num1 int `json:"num1"`
-		Num2 int `json:"num2"`
+		Num1 int    `json:"num1"`
+		Num2 int    `json:"num2"`
+		Op   string `json:"op"`
 	}
 
 	err = client.Default.RegisterFunc(inferable.Function{
 		Name:        "testFunction",
-		Description: "A test function",
+		Description: "A test function. Op can be add, sub, mul, or div.",
 		Func: func(input calcInput) int {
-			return input.Num1 + input.Num2
+			switch input.Op {
+			case "add":
+				return input.Num1 + input.Num2
+			case "sub":
+				return input.Num1 - input.Num2
+			case "mul":
+				return input.Num1 * input.Num2
+			case "div":
+				return input.Num1 / input.Num2
+			}
+			return 0
 		},
 	})
 
@@ -87,7 +98,7 @@ func TestInferableSetup(t *testing.T) {
 }
 
 func createRun(apiKey string) (string, error) {
-	url := fmt.Sprintf("https://api.inferable.ai/clusters/%s/runs", clusterId)
+	url := fmt.Sprintf("http://localhost:8080/clusters/%s/runs", clusterId)
 	payload := strings.NewReader(`{
 		"message": "Sum 1 and 2",
 		"result": {
@@ -129,7 +140,7 @@ func createRun(apiKey string) (string, error) {
 }
 
 func getRunResults(apiKey, runID string, attempts int) (int, error) {
-	url := fmt.Sprintf("https://api.inferable.ai/clusters/%s/runs/%s", clusterId, runID)
+	url := fmt.Sprintf("http://localhost:8080/clusters/%s/runs/%s", clusterId, runID)
 
 	req, _ := http.NewRequest("GET", url, nil)
 	req.Header.Add("authorization", apiKey)
