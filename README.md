@@ -1,8 +1,8 @@
+![Hero Image](./assets/hero.png)
+
 # Sentinel
 
 Sentinel is a low-latency tokenization proxy designed to achieve complete data localization when interacting with external servers. It acts as a secure intermediary, masking sensitive data transparently on its way to the destination and replacing the tokenized data on its way back.
-
-![Hero Image](./assets/hero.png)
 
 ## Key Features
 
