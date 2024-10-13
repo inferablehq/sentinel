@@ -48,7 +48,7 @@ func getConfig() Config {
 				PathMatcher: func(path string) bool {
 					return regexp.MustCompile(`^/clusters/\w+/calls/\w+/result$`).MatchString(path)
 				},
-				RequestBodyHandler:  func(in string) (string, error) { return tokenizableDataHandler(in, []string{".result.schema"}) },
+				RequestBodyHandler:  func(in string) (string, error) { return tokenizableDataHandler(in, []string{".resultType"}) },
 				ResponseBodyHandler: defaultPassthroughHandler,
 			},
 			{
@@ -56,7 +56,9 @@ func getConfig() Config {
 				PathMatcher: func(path string) bool {
 					return regexp.MustCompile(`^/clusters/\w+/runs$`).MatchString(path)
 				},
-				RequestBodyHandler:  func(in string) (string, error) { return tokenizableDataHandler(in, []string{".result.schema"}) },
+				RequestBodyHandler: func(in string) (string, error) {
+					return tokenizableDataHandler(in, []string{".result.schema", ".message"})
+				},
 				ResponseBodyHandler: defaultPassthroughHandler,
 			},
 			{
@@ -81,7 +83,7 @@ func tokenizableDataHandler(in string, except []string) (string, error) {
 		return "", fmt.Errorf("error unmarshalling request body: %v", err)
 	}
 
-	masked, err := tokenizer.Tokenizer(unmarshalled, "", []string{})
+	masked, err := tokenizer.Tokenizer(unmarshalled, "", except) // Pass except here
 	if err != nil {
 		log.Printf("Error tokenizing request body: %v", err)
 		return "", fmt.Errorf("error tokenizing request body: %v", err)
@@ -92,6 +94,8 @@ func tokenizableDataHandler(in string, except []string) (string, error) {
 		log.Printf("Error marshalling tokenized request body: %v", err)
 		return "", fmt.Errorf("error marshalling tokenized request body: %v", err)
 	}
+
+	log.Printf("Tokenized request body: %s", string(marshalled))
 
 	return string(marshalled), nil
 }
@@ -106,7 +110,7 @@ func detokenizableDataHandler(in string) (string, error) {
 		return "", fmt.Errorf("error unmarshalling response body: %v", err)
 	}
 
-	detokenized, err := tokenizer.Detokenizer(unmarshalled, "", []string{})
+	detokenized, err := tokenizer.Detokenizer(unmarshalled, "", []string{}) // Pass an empty except list here
 	if err != nil {
 		log.Printf("Error detokenizing response body: %v", err)
 		return "", fmt.Errorf("error detokenizing response body: %v", err)

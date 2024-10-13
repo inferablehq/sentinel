@@ -26,7 +26,7 @@ func tokenizerObject(obj map[string]interface{}, path string, except []string) (
 			continue
 		}
 
-		log.Println(">>> tokenizing", except, currentPath)
+		log.Println(">>> tokenizing", currentPath)
 
 		tokenized, err := Tokenizer(value, currentPath, except)
 		if err != nil {
