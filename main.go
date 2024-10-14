@@ -5,6 +5,7 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"os"
 	"strings"
 
 	"github.com/inferablehq/sentinel/pkg/strategies"
@@ -22,6 +23,11 @@ func copyHeader(dst, src http.Header) {
 
 func main() {
 	config = getConfig()
+
+	if os.Getenv("TARGET_URL") == "" {
+		log.Printf("TARGET_URL is not set")
+		os.Exit(1)
+	}
 
 	http.HandleFunc("/", router)
 
@@ -51,7 +57,7 @@ func router(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	targetURL := "https://api.inferable.ai" + r.URL.Path
+	targetURL := os.Getenv("TARGET_URL") + r.URL.Path
 	if r.URL.RawQuery != "" {
 		targetURL += "?" + r.URL.RawQuery
 	}
